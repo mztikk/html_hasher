@@ -2,7 +2,7 @@ mod xxHash;
 
 use lol_html::{element, HtmlRewriter, Settings};
 use std::{
-    env, fs,
+    env, fs, io,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -14,6 +14,33 @@ use crate::xxHash::xx_hash32;
 struct Cli {
     #[structopt(parse(from_os_str))]
     file_path: PathBuf,
+}
+
+fn create_hash_file(file_path: &Path) -> io::Result<String> {
+    let file_to_hash = fs::read(file_path)?;
+    dbg!(format!("read file {}", file_path.display()));
+
+    let hash = xx_hash32(&file_to_hash);
+    let hash_string = format!("{:x}", hash);
+    dbg!(format!(
+        "hash of {} is {}",
+        &file_path.display(),
+        hash_string
+    ));
+
+    let new_filename = format!(
+        "{}_{}.{}",
+        file_path.file_stem().unwrap().to_str().unwrap(),
+        hash_string,
+        file_path.extension().unwrap().to_str().unwrap()
+    );
+
+    dbg!(format!("new filename is {}", &new_filename));
+    fs::write(&new_filename, file_to_hash)?;
+    dbg!(format!("wrote file {}", &new_filename));
+    println!("{}", new_filename);
+
+    Ok(new_filename)
 }
 
 fn main() {
@@ -46,22 +73,7 @@ fn main() {
                     let src_path = Path::new(&src);
                     dbg!(format!("found script with src {}", src));
 
-                    if let Ok(file_to_hash) = fs::read(src_path) {
-                        let hash = xx_hash32(&file_to_hash);
-                        let hash_string = format!("{:x}", hash);
-                        dbg!(format!("hash of {} is {}", src, hash_string));
-
-                        let new_filename = format!(
-                            "{}_{}.{}",
-                            src_path.file_stem().unwrap().to_str().unwrap(),
-                            hash_string,
-                            src_path.extension().unwrap().to_str().unwrap()
-                        );
-
-                        dbg!(format!("new filename is {}", &new_filename));
-                        println!("{}", new_filename);
-
-                        fs::write(&new_filename, file_to_hash).unwrap();
+                    if let Ok(new_filename) = create_hash_file(src_path) {
                         el.set_attribute("src", &new_filename).unwrap();
                     }
 
@@ -73,24 +85,10 @@ fn main() {
                     let href_path = Path::new(&href);
                     dbg!(format!("found link with href {}", href));
 
-                    if let Ok(file_to_hash) = fs::read(href_path) {
-                        let hash = xx_hash32(&file_to_hash);
-                        let hash_string = format!("{:x}", hash);
-                        dbg!(format!("hash of {} is {}", href, hash_string));
-
-                        let new_filename = format!(
-                            "{}_{}.{}",
-                            href_path.file_stem().unwrap().to_str().unwrap(),
-                            hash_string,
-                            href_path.extension().unwrap().to_str().unwrap()
-                        );
-
-                        dbg!(format!("new filename is {}", &new_filename));
-                        println!("{}", new_filename);
-
-                        fs::write(&new_filename, file_to_hash).unwrap();
+                    if let Ok(new_filename) = create_hash_file(href_path) {
                         el.set_attribute("href", &new_filename).unwrap();
                     }
+
                     Ok(())
                 }),
             ],
